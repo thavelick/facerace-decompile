@@ -1,0 +1,11 @@
+- Extracted facrac23.zip from blog repo (application/static/archive/chaos-of-the-mind/facrac23.zip)
+- Confirmed it's VB2 (not VB4) — exe references VBRUN200.DLL, NE format for Windows 3.x
+- Contents: FACRAC23.EXE, 8 WAV files, FILE_ID.DIZ, FACERACE.WRI
+- Strings extraction found: Form1, FACERACE.FRM, menu structure (Game/New/Sound/Exit/Players), controls (SrcPic, Piece, EndTurn, Title, Logo), uses MMSYSTEM.DLL sndPlaySound for audio
+- Installed icoutils (wrestool) — resource extraction partially worked but rcdata came out empty due to "premature end" NE parsing issue
+- Downloaded DoDi's VB decompiler tools v2.6 from Internet Archive — includes VBRUN200.300 so it may support VB2
+- Built Docker image (debian:bullseye amd64 + wine + wine32 + xvfb + xauth) for running 16-bit Windows tools
+- VBDis3E.EXE is a GUI app — needs interactive use or automation to open/decompile files
+- DOSBox won't work — these are Windows 3.x apps (NE format), not DOS programs
+- Docker+Wine runs but VBDis3 is GUI-only — needs X11 display
+- XQuartz not installed on Mac — easier to continue on Linux machine with native Wine + X11
