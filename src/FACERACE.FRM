@@ -391,6 +391,7 @@ Sub Form_DragDrop (Source As Control, X As Single, Y As Single)
 End Sub
 
 Sub Form_Load ()
+    ChDir App.Path
     PlaySound ".\facesong.wav", 1
 End Sub
 
