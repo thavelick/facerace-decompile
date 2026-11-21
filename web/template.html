@@ -227,7 +227,7 @@ function PlaySound(name, wait) {
   if (!SoundMenu.checked || !actx || actx.state !== "running") return Promise.resolve();
   const done = buffers[name].then(buf => new Promise(resolve => {
     if (!buf) return resolve();
-    if (current) { try { current.stop(); } catch (e) {} }
+    if (current) current.stop();
     const src = actx.createBufferSource();
     src.buffer = buf;
     src.connect(actx.destination);
@@ -281,7 +281,6 @@ for (let i = 0; i <= 18; i++) {
 }
 function setPieceVisible(i, on) {
   const p = Piece[i];
-  if (!p) return;
   p.visible = on;
   if (p.el) show(p.el, on);
 }
@@ -402,7 +401,6 @@ function zoom(from, to) {
   anim.onfinish = anim.oncancel = () => r.remove();
 }
 function minimizeWindow() {
-  if (minimized) return;
   minimized = true;
   const from = $("window").getBoundingClientRect();
   $("stage").classList.add("minimized");
@@ -487,7 +485,7 @@ function CompPlyrMenu_Click(Index) {
 
 function SoundMenu_Click() {
   SoundMenu.checked = !SoundMenu.checked;
-  if (!SoundMenu.checked && current) { try { current.stop(); } catch (e) {} }
+  if (!SoundMenu.checked && current) current.stop();
 }
 
 function ExitMenu_Click() {
@@ -562,12 +560,12 @@ async function RemoveFirstPiece() {
 }
 
 function SetupPieces() {
-  for (let i = 1; i <= 17; i++) {
-    const row = i <= 7 ? 0 : i >= 9 && i <= 13 ? 1 : i >= 15 ? 2 : -1;
-    if (row < 0) continue;
-    Piece[i].el.src = SRC_PIC[row];
-    setPieceVisible(i, true);
-  }
+  [[1, 7], [9, 13], [15, 17]].forEach(([first, last], row) => {
+    for (let i = first; i <= last; i++) {
+      Piece[i].el.src = SRC_PIC[row];
+      setPieceVisible(i, true);
+    }
+  });
   PiecesRemaining = 15;
 }
 
@@ -622,7 +620,7 @@ async function NewMenu_Click() {
 // ---- dragging (Piece.Drag with the piece picture as DragIcon)
 let drag = null;
 function Piece_MouseDown(Index, e) {
-  if (busy || drag || e.button > 0 || !Piece[Index].visible) return;
+  if (busy || drag || e.button > 0) return;
   if (CurrentPlayer === ComputerPlayer) return;
   e.preventDefault();
   const ghost = document.createElement("img");
