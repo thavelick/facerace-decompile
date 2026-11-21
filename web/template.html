@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Face Race 2.3</title>
+<link rel="icon" href="data:image/png;base64,__ASSET_icon.png__">
+<style>
+  :root {
+    --desk: #008080;
+    --face: #c0c0c0;
+    --shadow: #808080;
+    --navy: #000080;
+    --s: 2;
+  }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--desk);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    font: bold 11px/1 "MS Sans Serif", "Microsoft Sans Serif", Tahoma, Geneva, Arial, sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  img { image-rendering: pixelated; -webkit-user-drag: none; display: block; }
+  u { text-decoration: underline; text-underline-offset: 1px; }
+
+  /* Everything is laid out at the original 1x pixel size, then scaled up. */
+  .scaled { transform: scale(var(--s)); transform-origin: 0 0; position: absolute; left: 0; top: 0; }
+  #stage { position: relative; width: calc(328px * var(--s)); height: calc(294px * var(--s)); }
+  body.busy, body.busy * { cursor: wait !important; }
+
+  /* ---- Windows 3.1 window chrome ---- */
+  .frame {
+    width: 320px;
+    border: 1px solid #000;
+    padding: 2px;
+    background: var(--face);
+    box-shadow: inset 0 0 0 1px var(--face);
+    position: relative;
+  }
+  .frame > .inner { border: 1px solid #000; background: #fff; }
+  .titlebar {
+    height: 18px; display: flex; align-items: stretch; position: relative;
+    background: var(--navy); color: #fff;
+    border-bottom: 1px solid #000;
+  }
+  .titlebar.inactive { background: #fff; color: #000; }
+  .titlebar .caption { flex: 1; text-align: center; line-height: 18px; white-space: nowrap; overflow: hidden; }
+  .sysbox {
+    width: 18px; background: var(--face); border-right: 1px solid #000;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sysbox::before {
+    content: ""; width: 11px; height: 3px; background: #fff;
+    border: 1px solid #000; box-shadow: 1px 1px 0 var(--shadow);
+  }
+  .minbtn {
+    width: 18px; background: var(--face); border-left: 1px solid #000;
+    box-shadow: inset 1px 1px #fff, inset -1px -1px var(--shadow), inset -2px -2px var(--shadow);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sysbox.open { background: var(--shadow); }
+  .minbtn:active { box-shadow: inset 1px 1px var(--shadow); }
+  .minbtn:active::before { transform: translate(1px, 1px); }
+  .minbtn::before {
+    content: ""; width: 0; height: 0;
+    border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid #000;
+  }
+
+  /* ---- Menus ---- */
+  .menubar {
+    height: 18px; display: flex; background: #fff; color: #000;
+    border-bottom: 1px solid #000; position: relative;
+  }
+  .menubar > .mtitle { padding: 0 7px; line-height: 18px; cursor: default; }
+  .menubar > .mtitle.open { background: var(--navy); color: #fff; }
+  .dropdown {
+    position: absolute; top: 18px; z-index: 20;
+    background: #fff; color: #000; border: 1px solid #000;
+    box-shadow: 2px 2px 0 rgba(0,0,0,.5);
+    padding: 1px 0; min-width: 110px;
+  }
+  .dropdown .item {
+    padding: 3px 12px 3px 16px; position: relative; white-space: nowrap; cursor: default;
+    display: flex; justify-content: space-between; gap: 24px;
+  }
+  .dropdown .item:not(.disabled):hover { background: var(--navy); color: #fff; }
+  .dropdown .item.disabled { color: var(--shadow); }
+  .dropdown .item.checked::before { content: "\2713"; position: absolute; left: 4px; top: 2px; }
+  .dropdown .sep { border-top: 1px solid #000; margin: 3px 0; }
+
+  /* ---- Form1 client area: 4800 x 3720 twips = 320 x 248 px ---- */
+  #client { position: relative; width: 320px; height: 248px; overflow: hidden; background: #fff; }
+  #client > * { position: absolute; }
+  .hidden { visibility: hidden; }
+  #title { left: 0; top: 0; width: 320px; height: 250px; z-index: 10; }
+  #logo { left: 264px; top: 80px; border: 1px solid #000; background: #fff; }
+  #pit { left: 72px; top: 136px; }
+  #copyright { left: 80px; top: 232px; color: #000; line-height: 13px; white-space: nowrap; }
+  .piece { width: 32px; height: 32px; touch-action: none; }
+  #endturn {
+    left: 144px; top: 152px; width: 81px; height: 33px; padding: 0;
+    font: inherit; color: #000; background: var(--face);
+    border: 1px solid #000; border-radius: 3px;
+    box-shadow: inset 1px 1px #fff, inset 2px 2px #fff, inset -1px -1px var(--shadow), inset -2px -2px var(--shadow);
+  }
+  #endturn:active:not(:disabled) {
+    box-shadow: inset 1px 1px var(--shadow), inset 2px 2px var(--face);
+    padding: 2px 0 0 2px;
+  }
+  #endturn:disabled { color: var(--shadow); }
+  #endturn:focus { outline: none; }
+  #endturn:focus-visible span { outline: 1px dotted #000; outline-offset: 1px; }
+
+  /* ---- Minimized window: a desktop icon in the bottom-left corner ---- */
+  #stage.minimized { visibility: hidden; }
+  #icon {
+    position: fixed; left: 12px; bottom: 12px; width: 76px; z-index: 30;
+    transform: scale(var(--s)); transform-origin: 0 100%;
+    display: flex; flex-direction: column; align-items: center; cursor: default;
+  }
+  #icon.hidden { display: none; }
+  #icon .label { margin-top: 3px; padding: 1px 3px; color: #fff; text-align: center; line-height: 12px; }
+  #icon.selected .label { background: var(--navy); }
+  #icon .dropdown { top: auto; bottom: 100%; left: 0; margin-bottom: 2px; }
+  .zoomrect { position: fixed; z-index: 90; pointer-events: none; border: 2px solid #000; mix-blend-mode: difference; border-color: #fff; }
+
+  /* ---- Drag icon ---- */
+  #ghost { position: fixed; pointer-events: none; z-index: 100; width: calc(32px * var(--s)); height: calc(32px * var(--s)); }
+
+  /* ---- MsgBox ---- */
+  #modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; }
+  #modal .holder { position: relative; }
+  #modal .frame { position: absolute; width: auto; min-width: 160px; }
+  #modal .body { padding: 18px 20px 12px; text-align: center; }
+  #modal .msg { margin-bottom: 16px; white-space: nowrap; }
+  #modal button {
+    width: 64px; height: 24px; font: inherit; color: #000; background: var(--face);
+    border: 2px solid #000; border-radius: 3px;
+    box-shadow: inset 1px 1px #fff, inset -1px -1px var(--shadow), inset -2px -2px var(--shadow);
+  }
+  #modal button:focus { outline: none; }
+  #modal button:active { box-shadow: inset 1px 1px var(--shadow); padding-top: 2px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="scaled">
+    <div class="frame" id="window">
+      <div class="inner">
+        <div class="titlebar" id="titlebar"><div class="sysbox" id="sysbox" title="Control menu"></div><div class="caption" id="caption">Face Race 2.3</div><div class="minbtn" id="minbtn" title="Minimize"></div></div>
+        <div class="menubar" id="menubar"></div>
+        <div id="client">
+          <div id="logo" class="hidden"><img alt="" src="data:image/png;base64,__ASSET_logo.png__" width="50" height="150"></div>
+          <button id="endturn" class="hidden" disabled><span>End Turn</span></button>
+          <img id="pit" class="hidden" alt="" src="data:image/png;base64,__ASSET_pit.png__" width="64" height="64">
+          <img id="title" alt="Face Race" src="data:image/png;base64,__ASSET_title.png__">
+          <div id="copyright" class="hidden">Face Race, 1995-1996 Imperial Software</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="icon" class="hidden"><img alt="" src="data:image/png;base64,__ASSET_icon.png__" width="32" height="32"><div class="label">Face Race 2.3</div></div>
+
+<script>
+"use strict";
+// Port of FACERACE.FRM (Visual Basic 2.0, 1995-1996 Imperial Software).
+// Sub and variable names follow the recovered source in src/FACERACE.FRM.
+
+// ---------------------------------------------------------------- assets
+const SRC_PIC = [
+  "data:image/png;base64,__ASSET_srcpic0.png__", // blue ball, top row
+  "data:image/png;base64,__ASSET_srcpic1.png__", // red cube, middle row
+  "data:image/png;base64,__ASSET_srcpic2.png__", // green pyramid, bottom row
+];
+const WAVS = {
+  "1": "__ASSET_1.WAV__",
+  "2": "__ASSET_2.WAV__",
+  applause: "__ASSET_APPLAUSE.WAV__",
+  drop: "__ASSET_DROP.WAV__",
+  facesong: "__ASSET_FACESONG.WAV__",
+  haha: "__ASSET_HAHA.WAV__",
+  uhoh: "__ASSET_UHOH.WAV__",
+  whew: "__ASSET_WHEW.WAV__",
+};
+
+// ---------------------------------------------------------------- scaling
+function fit() {
+  const s = Math.min((innerWidth - 16) / 328, (innerHeight - 16) / 294);
+  document.documentElement.style.setProperty("--s", s >= 2 ? Math.floor(s) : Math.max(0.5, s));
+}
+addEventListener("resize", fit);
+fit();
+const scale = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--s"));
+
+// ---------------------------------------------------------------- sound (sndPlaySound)
+// sndPlaySound stops whatever is playing before starting a new sound.
+// A synchronous call (SND_ASYNC not set) blocks the program until the sound ends.
+let actx = null, current = null, songPlayed = false;
+const buffers = {};
+function initAudio() {
+  if (actx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  actx = new AC();
+  for (const [name, b64] of Object.entries(WAVS)) {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    buffers[name] = actx.decodeAudioData(bytes.buffer).catch(() => null);
+  }
+}
+function unlockAudio() {
+  initAudio();
+  if (!actx) return;
+  const resumed = actx.state === "running" ? Promise.resolve() : actx.resume();
+  resumed.then(() => {
+    // Form_Load: PlaySound ".\facesong.wav". Browsers hold audio until the first click.
+    if (!songPlayed && !gameStarted) { songPlayed = true; PlaySound("facesong", false); }
+  });
+}
+addEventListener("pointerdown", unlockAudio, { capture: true });
+addEventListener("keydown", unlockAudio, { capture: true });
+
+// PlaySound(filename, wait): the original's second argument, where 0 = async and 1 = sync.
+function PlaySound(name, wait) {
+  if (!SoundMenu.checked || !actx || actx.state !== "running") return Promise.resolve();
+  const done = buffers[name].then(buf => new Promise(resolve => {
+    if (!buf) return resolve();
+    if (current) { try { current.stop(); } catch (e) {} }
+    const src = actx.createBufferSource();
+    src.buffer = buf;
+    src.connect(actx.destination);
+    src.onended = () => { if (current === src) current = null; resolve(); };
+    current = src;
+    src.start();
+  }));
+  if (!wait) return Promise.resolve();
+  return locked(() => done);
+}
+
+// While a synchronous sound, MsgBox or computer turn runs, the VB program ignored input.
+let busy = 0;
+async function locked(fn) {
+  busy++; document.body.classList.add("busy");
+  try { return await fn(); }
+  finally { if (--busy === 0) document.body.classList.remove("busy"); }
+}
+
+// ---------------------------------------------------------------- form controls
+const $ = id => document.getElementById(id);
+const Title = $("title"), Logo = $("logo"), Pit = $("pit"), EndTurn = $("endturn"), CopyRight = $("copyright");
+const show = (el, on) => el.classList.toggle("hidden", !on);
+const setCaption = t => {
+  $("caption").textContent = t;
+  $("icon").querySelector(".label").textContent = t;
+  document.title = t;
+};
+
+// Piece(0..18). 0, 8, 14 and 18 are never shown; they separate the rows so that
+// "index +/- 1" adjacency never crosses from one row to the next.
+const PIECE_POS = {
+  1: [24, 16], 2: [64, 16], 3: [104, 16], 4: [144, 16], 5: [184, 16], 6: [224, 16], 7: [264, 16],
+  9: [64, 56], 10: [104, 56], 11: [144, 56], 12: [184, 56], 13: [224, 56],
+  15: [104, 96], 16: [144, 96], 17: [184, 96],
+};
+const Piece = [];
+for (let i = 0; i <= 18; i++) {
+  const p = { index: i, visible: false, el: null };
+  if (PIECE_POS[i]) {
+    const img = document.createElement("img");
+    img.className = "piece hidden";
+    img.alt = "";
+    img.style.left = PIECE_POS[i][0] + "px";
+    img.style.top = PIECE_POS[i][1] + "px";
+    img.addEventListener("pointerdown", e => Piece_MouseDown(i, e));
+    $("client").insertBefore(img, Title);
+    p.el = img;
+  }
+  Piece.push(p);
+}
+function setPieceVisible(i, on) {
+  const p = Piece[i];
+  if (!p) return;
+  p.visible = on;
+  if (p.el) show(p.el, on);
+}
+
+// ---------------------------------------------------------------- menus
+const SoundMenu = { checked: true };
+const CompPlyrMenu = { 1: { checked: false }, 2: { checked: false } };
+const MENUS = [
+  { label: "&Game", items: [
+    { label: "&New", click: () => NewMenu_Click() },
+    { label: "&Sound", checked: () => SoundMenu.checked, click: () => SoundMenu_Click() },
+    { sep: true },
+    { label: "&Exit", click: () => ExitMenu_Click() },
+  ] },
+  { label: "&Computer", items: [
+    { label: "Player &1", checked: () => CompPlyrMenu[1].checked, click: () => CompPlyrMenu_Click(1) },
+    { label: "Player &2", checked: () => CompPlyrMenu[2].checked, click: () => CompPlyrMenu_Click(2) },
+  ] },
+];
+// The Windows 3.1 control menu. Face Race has no maximize button and a fixed border,
+// so only Minimize/Restore and Close do anything.
+const closeWindow = () => { if (!busy) { restoreWindow(false); ExitMenu_Click(); } };
+const SYS_MENU = () => [
+  { label: "&Restore", disabled: !minimized, click: () => restoreWindow(true) },
+  { label: "&Move", disabled: true },
+  { label: "&Size", disabled: true },
+  { label: "Mi&nimize", disabled: minimized, click: () => minimizeWindow() },
+  { label: "Ma&ximize", disabled: true },
+  { sep: true },
+  { label: "&Close", shortcut: "Alt+F4", click: closeWindow },
+  { sep: true },
+  { label: "S&witch To...", shortcut: "Ctrl+Esc", disabled: true },
+];
+
+const amp = s => s.replace(/&(.)/, "<u>$1</u>");
+let openMenu = null; // a menubar index, "sys" or "icon"
+const menubar = $("menubar");
+const menuTitles = MENUS.map((m, i) => {
+  const t = document.createElement("div");
+  t.className = "mtitle";
+  t.innerHTML = amp(m.label);
+  t.addEventListener("pointerdown", e => {
+    e.stopPropagation();
+    if (busy) return;
+    openMenu === i ? closeMenu() : showMenu(i);
+  });
+  t.addEventListener("pointerenter", () => { if (typeof openMenu === "number" && openMenu !== i) showMenu(i); });
+  menubar.appendChild(t);
+  return t;
+});
+function closeMenu() {
+  openMenu = null;
+  document.querySelectorAll(".mtitle.open, .sysbox.open").forEach(t => t.classList.remove("open"));
+  document.querySelectorAll(".dropdown").forEach(d => d.remove());
+}
+function popup(container, left, items) {
+  const dd = document.createElement("div");
+  dd.className = "dropdown";
+  if (left !== null) dd.style.left = left + "px";
+  for (const item of items) {
+    const row = document.createElement("div");
+    if (item.sep) { row.className = "sep"; dd.appendChild(row); continue; }
+    row.className = "item" + (item.checked && item.checked() ? " checked" : "") + (item.disabled ? " disabled" : "");
+    row.innerHTML = "<span>" + amp(item.label) + "</span>" + (item.shortcut ? "<span>" + item.shortcut + "</span>" : "");
+    row.addEventListener("pointerdown", e => e.stopPropagation());
+    row.addEventListener("click", () => {
+      if (item.disabled) return;
+      closeMenu();
+      if (!busy || !item.blockedWhenBusy) item.click();
+    });
+    dd.appendChild(row);
+  }
+  container.appendChild(dd);
+}
+function showMenu(i) {
+  closeMenu();
+  openMenu = i;
+  menuTitles[i].classList.add("open");
+  // Menu bar items act on the game, so they wait out sounds and the computer's turn.
+  popup(menubar, menuTitles[i].offsetLeft, MENUS[i].items.map(it => ({ ...it, blockedWhenBusy: true })));
+}
+addEventListener("pointerdown", () => {
+  if (openMenu !== null) closeMenu();
+  $("icon").classList.remove("selected");
+});
+
+// ---------------------------------------------------------------- minimize / restore
+let minimized = false;
+const sysbox = $("sysbox"), icon = $("icon");
+sysbox.addEventListener("pointerdown", e => {
+  e.stopPropagation();
+  if (openMenu === "sys") return closeMenu();
+  closeMenu();
+  openMenu = "sys";
+  sysbox.classList.add("open");
+  popup($("titlebar"), 0, SYS_MENU());
+});
+sysbox.addEventListener("dblclick", () => { closeMenu(); closeWindow(); });
+$("minbtn").addEventListener("pointerdown", e => e.stopPropagation());
+$("minbtn").addEventListener("click", () => { closeMenu(); minimizeWindow(); });
+icon.addEventListener("pointerdown", e => {
+  e.stopPropagation();
+  icon.classList.add("selected");
+  if (openMenu === "icon") return closeMenu();
+  closeMenu();
+  openMenu = "icon";
+  popup(icon, null, SYS_MENU());
+});
+icon.addEventListener("dblclick", () => { closeMenu(); restoreWindow(true); });
+
+// Outline that flies between the window and the icon.
+function zoom(from, to) {
+  const r = document.createElement("div");
+  r.className = "zoomrect";
+  document.body.appendChild(r);
+  const frame = b => ({ left: b.left + "px", top: b.top + "px", width: b.width + "px", height: b.height + "px" });
+  const anim = r.animate([frame(from), frame(to)], { duration: 220, easing: "ease-in-out" });
+  anim.onfinish = anim.oncancel = () => r.remove();
+}
+function minimizeWindow() {
+  if (minimized) return;
+  minimized = true;
+  const from = $("window").getBoundingClientRect();
+  $("stage").classList.add("minimized");
+  icon.classList.remove("hidden");
+  icon.classList.add("selected");
+  zoom(from, icon.getBoundingClientRect());
+}
+function restoreWindow(animate) {
+  if (!minimized) return;
+  minimized = false;
+  const from = icon.getBoundingClientRect();
+  icon.classList.add("hidden");
+  $("stage").classList.remove("minimized");
+  if (animate) zoom(from, $("window").getBoundingClientRect());
+}
+
+addEventListener("keydown", e => {
+  if (e.key === "Escape") return closeMenu();
+  if (busy || minimized || $("modal")) return;
+  if (e.altKey && !e.ctrlKey && !e.metaKey) {
+    const k = e.key.toLowerCase();
+    const i = MENUS.findIndex(m => m.label.match(/&(.)/)[1].toLowerCase() === k);
+    if (i >= 0) { e.preventDefault(); showMenu(i); }
+  } else if (typeof openMenu === "number") {
+    const item = MENUS[openMenu].items.find(it => it.label && it.label.match(/&(.)/)[1].toLowerCase() === e.key.toLowerCase());
+    if (item) { e.preventDefault(); closeMenu(); item.click(); }
+  }
+});
+
+// ---------------------------------------------------------------- MsgBox
+function MsgBox(text, title) {
+  return locked(() => new Promise(resolve => {
+    $("window").querySelector(".titlebar").classList.add("inactive");
+    const modal = document.createElement("div");
+    modal.id = "modal";
+    const s = scale();
+    modal.innerHTML =
+      '<div class="holder"><div class="scaled frame"><div class="inner">' +
+      '<div class="titlebar"><div class="sysbox"></div><div class="caption"></div></div>' +
+      '<div class="body"><div class="msg"></div><button>OK</button></div></div></div></div>';
+    modal.querySelector(".caption").textContent = title;
+    modal.querySelector(".msg").textContent = text;
+    document.body.appendChild(modal);
+    const box = modal.querySelector(".frame"), holder = modal.querySelector(".holder");
+    holder.style.width = box.offsetWidth * s + "px";
+    holder.style.height = box.offsetHeight * s + "px";
+    const ok = modal.querySelector("button");
+    const close = () => {
+      removeEventListener("keydown", onKey, true);
+      modal.remove();
+      $("window").querySelector(".titlebar").classList.remove("inactive");
+      resolve();
+    };
+    const onKey = e => {
+      if (["Enter", "Escape", " "].includes(e.key)) { e.preventDefault(); e.stopPropagation(); close(); }
+    };
+    addEventListener("keydown", onKey, true);
+    ok.addEventListener("click", close);
+    ok.focus();
+  }));
+}
+
+// ---------------------------------------------------------------- game state
+let IsFirstMove = false, LastPieceIndex = 0, MovesThisTurn = 0, PiecesRemaining = 0;
+let CurrentPlayer = 0, ComputerPlayer = 0;
+const GroupStart = new Array(10).fill(0), GroupEnd = new Array(10).fill(0);
+let GroupCount = 0, SingleCount = 0, MultiGroupCount = 0, LastMultiGroup = 0;
+let HasOneMultiGroup = false, AllSingles = false;
+let gameStarted = false;
+// Bumped by NewMenu_Click. The original kept running the finished turn after
+// CheckWinner had already started a new game; checking this stops that.
+let gameId = 0;
+
+function CompPlyrMenu_Click(Index) {
+  if (CompPlyrMenu[Index].checked) {
+    CompPlyrMenu[Index].checked = false;
+  } else {
+    CompPlyrMenu[Index].checked = true;
+    CompPlyrMenu[Index === 1 ? 2 : 1].checked = false;
+  }
+}
+
+function SoundMenu_Click() {
+  SoundMenu.checked = !SoundMenu.checked;
+  if (!SoundMenu.checked && current) { try { current.stop(); } catch (e) {} }
+}
+
+function ExitMenu_Click() {
+  // A web page can't close its own window, so Exit goes back to the title screen.
+  gameId++;
+  gameStarted = false;
+  CurrentPlayer = ComputerPlayer = 0;
+  for (let i = 0; i <= 18; i++) setPieceVisible(i, false);
+  [CopyRight, Logo, Pit, EndTurn].forEach(el => show(el, false));
+  show(Title, true);
+  setCaption("Face Race 2.3");
+}
+
+async function EndTurn_Click() {
+  IsFirstMove = true;
+  MovesThisTurn = 0;
+  EndTurn.disabled = true;
+  if (CurrentPlayer === 1) {
+    CurrentPlayer = 2;
+    await PlaySound("2", true);
+    setCaption("FaceRace: Player 2...");
+  } else {
+    CurrentPlayer = 1;
+    await PlaySound("1", true);
+    setCaption("FaceRace: Player 1...");
+  }
+  if (CurrentPlayer === ComputerPlayer) await ComputerTurn();
+}
+EndTurn.addEventListener("click", () => { if (!busy) EndTurn_Click(); });
+
+function AnalyzeGroups() {
+  SingleCount = 0;
+  MultiGroupCount = 0;
+  let InGroup = false, GroupIndex = 1, PieceIndex = 0;
+  do {
+    PieceIndex++;
+    if (Piece[PieceIndex].visible && !InGroup) {
+      GroupStart[GroupIndex] = PieceIndex;
+      InGroup = true;
+    } else if (!Piece[PieceIndex].visible && InGroup) {
+      GroupEnd[GroupIndex] = PieceIndex - 1;
+      if (GroupStart[GroupIndex] !== GroupEnd[GroupIndex]) {
+        MultiGroupCount++;
+        LastMultiGroup = GroupIndex;
+      } else {
+        SingleCount++;
+      }
+      GroupIndex++;
+      InGroup = false;
+    }
+  } while (PieceIndex !== 18);
+  if (MultiGroupCount === 1) {
+    HasOneMultiGroup = true;
+  } else if (MultiGroupCount === 0) {
+    AllSingles = true;
+    HasOneMultiGroup = false;
+  } else {
+    AllSingles = false;
+    HasOneMultiGroup = false;
+  }
+  GroupCount = GroupIndex - 1;
+}
+
+async function RemoveFirstPiece() {
+  if (PiecesRemaining > 1) {
+    setPieceVisible(GroupStart[1], false);
+    GroupCount--;
+    PiecesRemaining--;
+  } else {
+    await CheckWinner(CurrentPlayer);
+  }
+}
+
+function SetupPieces() {
+  for (let i = 1; i <= 17; i++) {
+    const row = i <= 7 ? 0 : i >= 9 && i <= 13 ? 1 : i >= 15 ? 2 : -1;
+    if (row < 0) continue;
+    Piece[i].el.src = SRC_PIC[row];
+    setPieceVisible(i, true);
+  }
+  PiecesRemaining = 15;
+}
+
+async function CheckWinner(Player) {
+  if (Player === ComputerPlayer) {
+    await PlaySound("applause", true);
+    await MsgBox("You Won!!!!!", "FaceRace");
+  } else {
+    await PlaySound("haha", true);
+    await MsgBox("You lost!  Try again!", "FaceRace");
+  }
+  await NewMenu_Click();
+}
+
+function ComputerTurn() {
+  return locked(async () => {
+    const id = gameId;
+    AnalyzeGroups();
+    if (HasOneMultiGroup === false && AllSingles === false) {
+      ComputerPickBestMove();
+    } else if (HasOneMultiGroup === true) {
+      ComputerPickFromOnlyGroup();
+    } else {
+      await RemoveFirstPiece();
+    }
+    if (id !== gameId) return;
+    await EndTurn_Click();
+  });
+}
+
+async function NewMenu_Click() {
+  gameId++;
+  gameStarted = true;
+  AllSingles = false;
+  HasOneMultiGroup = false;
+  if (CompPlyrMenu[1].checked) ComputerPlayer = 1;
+  else if (CompPlyrMenu[2].checked) ComputerPlayer = 2;
+  else ComputerPlayer = 0;
+  CurrentPlayer = 1;
+  IsFirstMove = true;
+  MovesThisTurn = 0;
+  SetupPieces();
+  show(CopyRight, true);
+  show(Logo, true);
+  show(Pit, true);
+  show(EndTurn, true);
+  EndTurn.disabled = true;
+  show(Title, false);
+  if (ComputerPlayer === 1) await ComputerTurn();
+}
+
+// ---- dragging (Piece.Drag with the piece picture as DragIcon)
+let drag = null;
+function Piece_MouseDown(Index, e) {
+  if (busy || drag || e.button > 0 || !Piece[Index].visible) return;
+  if (CurrentPlayer === ComputerPlayer) return;
+  e.preventDefault();
+  const ghost = document.createElement("img");
+  ghost.id = "ghost";
+  ghost.src = Piece[Index].el.src;
+  document.body.appendChild(ghost);
+  drag = { index: Index, ghost, pointerId: e.pointerId };
+  moveGhost(e);
+  setPieceVisible(Index, false);
+  PlaySound("uhoh", false);
+}
+function moveGhost(e) {
+  const half = 16 * scale();
+  drag.ghost.style.left = e.clientX - half + "px";
+  drag.ghost.style.top = e.clientY - half + "px";
+}
+addEventListener("pointermove", e => { if (drag && e.pointerId === drag.pointerId) moveGhost(e); });
+function endDrag(e, cancelled) {
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  const { index, ghost } = drag;
+  drag = null;
+  ghost.remove();
+  const r = Pit.getBoundingClientRect();
+  const onPit = !cancelled && !Pit.classList.contains("hidden") &&
+    e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom;
+  if (onPit) Pit_DragDrop(index);
+  else DragDropElsewhere(index);
+}
+addEventListener("pointerup", e => endDrag(e, false));
+addEventListener("pointercancel", e => endDrag(e, true));
+
+// Form_DragDrop, Piece_DragDrop, Logo_DragDrop, EndTurn_DragDrop and CopyRight_DragDrop
+// all did the same thing: put the piece back.
+function DragDropElsewhere(Index) {
+  PlaySound("whew", false);
+  setPieceVisible(Index, true);
+}
+
+async function Pit_DragDrop(Index) {
+  if (IsFirstMove || Index === LastPieceIndex + 1 || Index === LastPieceIndex - 1) {
+    if (PiecesRemaining === 1) {
+      setPieceVisible(Index, true);
+      await CheckWinner(CurrentPlayer);
+    } else {
+      PiecesRemaining--;
+      PlaySound("drop", false);
+      LastPieceIndex = Index;
+      IsFirstMove = false;
+      MovesThisTurn++;
+      EndTurn.disabled = false;
+      if (MovesThisTurn >= 3) await EndTurn_Click();
+    }
+  } else {
+    PlaySound("whew", false);
+    setPieceVisible(Index, true);
+  }
+}
+
+function ComputerPickFromOnlyGroup() {
+  const ShouldTakeExtra = (GroupCount - 1) % 2 !== 0;
+  let FirstPiece = 0, SecondPiece = 0, ThirdPiece = 0;
+  const g = LastMultiGroup;
+  const GroupSize = GroupEnd[g] - GroupStart[g] + 1;
+  if (GroupSize === 2 && ShouldTakeExtra) {
+    FirstPiece = GroupStart[g]; SecondPiece = GroupStart[g] + 1;
+  } else if (GroupSize === 2 && !ShouldTakeExtra) {
+    FirstPiece = GroupStart[g]; SecondPiece = 0;
+  } else if (GroupSize === 3 && ShouldTakeExtra) {
+    FirstPiece = GroupStart[g] + 1; SecondPiece = 0;
+  } else if (GroupSize === 3 && !ShouldTakeExtra) {
+    FirstPiece = GroupStart[g]; SecondPiece = GroupStart[g] + 1;
+  } else if (GroupSize === 4 && ShouldTakeExtra) {
+    FirstPiece = GroupStart[g] + 1; SecondPiece = GroupStart[g] + 2;
+  } else if (GroupSize === 4 && !ShouldTakeExtra) {
+    FirstPiece = GroupStart[g]; SecondPiece = GroupStart[g] + 1; ThirdPiece = GroupStart[g] + 2;
+  } else {
+    ComputerPickBestMove();
+  }
+  takePieces(FirstPiece, SecondPiece, ThirdPiece);
+}
+
+function ComputerPickBestMove() {
+  // Score and the candidates are Variants in the original and carry over between
+  // loop passes; a one-piece group matches no branch and keeps the previous values.
+  let CandidatePiece = 0, CandidateSecond = 0, CandidateThird = 0, Score = 0;
+  let BestFirstPiece = 0, BestSecondPiece = 0, BestThirdPiece = 0, BestScore = 0;
+  for (let i = 1; i <= GroupCount; i++) {
+    const size = GroupEnd[i] - GroupStart[i] + 1;
+    CandidatePiece = GroupStart[i] + 1;
+    if (size === 2) {
+      CandidateSecond = 0; CandidateThird = 0; Score = 1;
+    } else if (size === 3) {
+      CandidateSecond = 0; CandidateThird = 0; Score = 2;
+    } else if (size === 4) {
+      CandidateSecond = CandidatePiece + 1; CandidateThird = 0; Score = 2;
+    } else if (size === 5) {
+      CandidateSecond = CandidatePiece + 1; CandidateThird = CandidatePiece + 2; Score = 2;
+    } else if (size > 5) {
+      CandidateSecond = CandidatePiece + 1; CandidateThird = 0; Score = 1;
+    }
+    if (Score > BestScore) {
+      BestScore = Score;
+      BestFirstPiece = CandidatePiece;
+      BestSecondPiece = CandidateSecond;
+      BestThirdPiece = CandidateThird;
+    }
+  }
+  takePieces(BestFirstPiece, BestSecondPiece, BestThirdPiece);
+}
+
+function takePieces(...indices) {
+  for (const i of indices) {
+    if (i === 0) continue; // Piece(0) is the hidden placeholder
+    setPieceVisible(i, false);
+    PiecesRemaining--;
+  }
+}
+
+// Form_Load
+initAudio();
+if (actx && actx.state === "running") { songPlayed = true; PlaySound("facesong", false); }
+</script>
+</body>
+</html>

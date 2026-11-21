@@ -2,12 +2,22 @@
 
 Recovered source code from Face Race 2.3, a two-player board/strategy game originally written in Visual Basic 2.0 (1995-1996) by Tristan Havelick and Erik Meridith under "Imperial Software".
 
+## Play in a browser
+
+[Download facerace.html](https://raw.githubusercontent.com/thavelick/facerace-decompile/main/web/facerace.html) (right-click and choose "Save link as"), then open it in any browser. It's a JavaScript port of the recovered source. The file includes the images and sounds, so it needs nothing else.
+
+To change the port, edit `web/template.html` and run `python3 web/build.py`, which inlines the files from `src/` into `web/facerace.html`.
+
 ## Files
 
 - `src/` — decompiled and cleaned-up VB source code
   - `FACERACE.FRM` — form layout + all game code (text format)
   - `FACERACE.FRX` — binary resources (bitmaps, icons)
   - `FACERACE.MAK` — VB3 project file
+- `web/` — browser port
+  - `facerace.html` — the playable game, built from the template
+  - `template.html` — source for the port, with placeholders for images and sounds
+  - `build.py` — fills the placeholders and writes `facerace.html`
 - `FACRAC23.EXE` — the original game executable
 - `vbdis/` — DoDi's Visual Basic decompiler tools v2.6 (used for decompilation)
 - `dosbox.conf` — DOSBox Staging config for running Windows 3.1
